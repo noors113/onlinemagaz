@@ -85,3 +85,7 @@ class ParsedPricesForItem(models.Model):
 
     class Meta:
         unique_together = ['item_id', 'source']
+
+    @property
+    def percent_difference(self):
+        return abs(int((self.price - self.item.price) / self.item.price * 100))

@@ -21,15 +21,13 @@ def start_parsing_from_enter_kg():
             tags__in=[ItemTag.objects.get(slug='laptops')]
         ).values_list('title', flat=True))
     )
-    products = soup.find_all('div', class_='rows')
-
-    for product in products:
+    products = soup.find_all('div', class_='product')
+    for product in set(products):
         product_name = getattr(
             product.find_next('span', class_='prouct_name'),
             'text', None
         )
         price = getattr(product.find_next('span', class_='price'), 'text', None)
-
         if product_name and price and product_name in db_products:
             source_price = price.replace(' Сом', '')
             try:
@@ -39,6 +37,7 @@ def start_parsing_from_enter_kg():
                     price=decimal.Decimal(source_price),
                 )
             except IntegrityError:
+                print("Такая запись уже существует")
                 continue
 
 
@@ -51,14 +50,13 @@ def start_parsing_systema_kg():
 
     for product in db_products:
         url = f'https://systema.kg/search?controller=search&s={product}'
-        print(url)
         content = requests.get(url).text
         soup = BeautifulSoup(content, 'html.parser')
 
         try:
             parsed_product = soup.find_all('div', class_='product')[0]
-            print(parsed_product)
-            product_name = parsed_product.find_next('h2', class_='product-title')
+            product_name = parsed_product.find_next('h2',
+                                                    class_='product-title')
             product_name = getattr(
                 product_name.find_next('a'),
                 'text',
@@ -66,23 +64,23 @@ def start_parsing_systema_kg():
             ) if product_name else None
             price = getattr(parsed_product.find_next('span', class_='price'),
                             'text', '')
-            if product_name and price and product_name:
-                print("ТОвары совпали")
-                source_price = price.strip().replace(" СОМ", "").encode('unicode_escape').decode('utf-8')
+            if product_name and price and product_name == product:
+                print("Товары совпали")
+                source_price = price.strip().replace(" СОМ", "").encode(
+                    'unicode_escape').decode('utf-8')
                 ParsedPricesForItem.objects.create(
                     item_id=Item.objects.get(title=product).id,
                     source="Systema.kg",
                     price=int(source_price),
                 )
         except IndexError:
-            print("INDEX ERROR")
-            pass
+            print("Товаров не найдено")
 
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        # start_parsing_from_enter_kg()
-        start_parsing_systema_kg()
+        start_parsing_from_enter_kg()
+        # start_parsing_systema_kg()
         # schedule.every().day.do(start_parsing_from_enter_kg)
         # schedule.every().day.do(start_parsing_systema_kg)
         #
